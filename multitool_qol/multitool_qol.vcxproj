@@ -199,7 +199,10 @@
     <ClCompile Include="modules.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BT_AutoMode.h" />
+    <ClInclude Include="defs.h" />
     <ClInclude Include="detours.h" />
+    <ClInclude Include="UIEngineInterface.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
