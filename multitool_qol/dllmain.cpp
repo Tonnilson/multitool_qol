@@ -51,17 +51,25 @@ const std::filesystem::path& documents_path()
 	return path;
 }
 
-const std::string currentTime() {
-	time_t now = time(0);
-	struct tm tstruct;
-	char buf[80];
-	tstruct = *localtime(&now);
-	strftime(buf, sizeof(buf), "%m/%d/%Y %X", &tstruct);
-	return buf;
+// Why tf did I write std::string it should be char* but too lazy to fix
+const void CLog(std::string msg) {
+	wchar_t szBuffer[1024];
+	wsprintf(szBuffer, xorstr_(L"[MULTITOOL_QOL] %S\n"), msg.c_str());
+	WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE), szBuffer, wcslen(szBuffer), NULL, NULL);
 }
 
-const void CLog(std::string msg) {
-	std::cout << "[" << currentTime() << "] " << msg << std::endl;
+/*
+	Why am I doing this to write to console instead of redirecting stdout stream? Some fucking moron at NC
+	decided that python was absolutely needed and decided to mix it into the environment so now when redirecting
+	stdout you will randomly cause a crash when the python stuff initializes which also crashes the entire process.
+*/
+void ConsoleWrite(const wchar_t* msg, ...) {
+	wchar_t szBuffer[1024];
+	va_list args;
+	va_start(args, msg);
+	vswprintf(szBuffer, 1024, msg, args);
+	WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), szBuffer, wcslen(szBuffer), NULL, NULL);
+	va_end(args);
 }
 
 int GetKeyCodeFromString(const pugi::char_t* str) {
@@ -157,11 +165,10 @@ bool __fastcall hkSetGlobalCoolTime_renewal(SkillTimer* thisptr, __int64 skillId
 		BNSInstance = *(BNSClient**)nNet;
 
 	if (useDebug) {
-		std::cout << std::endl
-			<< xorstr_("Ping Reduction: ") << GetPingMode() << std::endl
-			<< xorstr_("Skill ID: ") << (int)skillId << std::endl
-			<< xorstr_("GlobalCoolTime: ") << globalRecycleTime << std::endl
-			<< xorstr_("Group: ") << globalGroupIndex << std::endl;
+		ConsoleWrite(xorstr_(L"\nPing Rediction: %S\n"), GetPingMode());
+		ConsoleWrite(xorstr_(L"Skill ID: %d\n"), (int)skillId);
+		ConsoleWrite(xorstr_(L"GlobalCoolTime: %g\n"), globalRecycleTime);
+		ConsoleWrite(xorstr_(L"Group: %d\n"), globalGroupIndex);
 	}
 
 	if (xpathNode) {
@@ -169,7 +176,7 @@ bool __fastcall hkSetGlobalCoolTime_renewal(SkillTimer* thisptr, __int64 skillId
 			thisptr->_coolTimeBias = 0.001;
 
 			if (useDebug)
-				std::cout << xorstr_("Ignoring Bias") << std::endl;
+				ConsoleWrite(xorstr_(L"Ignoring Bias\n"));
 		}
 		if (!xpathNode.node().attribute(xorstr_("mode")).as_bool()) {
 			globalRecycleTime += xpathNode.node().attribute(xorstr_("value")).as_float();
@@ -184,7 +191,7 @@ bool __fastcall hkSetGlobalCoolTime_renewal(SkillTimer* thisptr, __int64 skillId
 				thisptr->_coolTimeBias = 0.001;
 
 				if (useDebug)
-					std::cout << xorstr_("Ignoring Bias") << std::endl;
+					ConsoleWrite(xorstr_(L"Ignoring Bias\n"));
 			}
 
 			if (!all_skills.node().attribute(xorstr_("mode")).as_bool()) {
@@ -204,7 +211,7 @@ bool __fastcall hkSetGlobalCoolTime_renewal(SkillTimer* thisptr, __int64 skillId
 		globalRecycleTime = 0.0f;
 
 	if (useDebug)
-		std::cout << xorstr_("Modified GCD: ") << globalRecycleTime << std::endl;
+		ConsoleWrite(xorstr_(L"Modified GCD: %g\n"), globalRecycleTime);
 	return oSetGlobalCoolTime_renewal(thisptr, skillId, globalGroupIndex, globalRecycleTime);
 }
 
@@ -223,7 +230,7 @@ bool __fastcall hkSetSkillRecycleTime_renewal(SkillTimer* thisptr, const __int64
 		BNSInstance = *(BNSClient**)nNet;
 
 	if (useDebug)
-		std::cout << xorstr_("Recycle Time: ") << recycleTime << std::endl;
+		ConsoleWrite(xorstr_(L"Recycle Time: %g\n"), recycleTime);
 
 	if (xpathNode) {
 		if (!xpathNode.node().attribute(xorstr_("recycleMode")).as_bool()) {
@@ -249,7 +256,7 @@ bool __fastcall hkSetSkillRecycleTime_renewal(SkillTimer* thisptr, const __int64
 			recycleTime -= BNSInstance->game->receivedServerPing / 1000.0;
 
 	if (useDebug)
-		std::cout << xorstr_("Modified Time: ") << recycleTime << std::endl;
+		ConsoleWrite(xorstr_(L"Modified Time: %g\n"), recycleTime);
 
 	if (recycleTime < 0.0f)
 		recycleTime = 0.0f;
@@ -293,12 +300,10 @@ bool __fastcall hkBInputKey(BInputKey* thisptr, EInputKeyEvent* InputKeyEvent) {
 
 			if (bOldDebug != useDebug) {
 				if (!useDebug) {
-					fclose(stdout);
 					FreeConsole();
 				}
 				else {
 					AllocConsole();
-					freopen("CONOUT$", "w", stdout);
 				}
 			}
 
@@ -408,7 +413,7 @@ void __cdecl oep_notify([[maybe_unused]] const Version client_version)
 		//Failed to load XML document, abort like my mother should of done with me.
 		if (!loadResult)
 		{
-			MessageBox(NULL, L"Failed to load multitool_qol xml", L"Load Failure", MB_OK);
+			MessageBox(NULL, xorstr_(L"Failed to load multitool_qol xml"), xorstr_(L"Load Failure"), MB_OK);
 			return;
 		}
 
@@ -434,10 +439,8 @@ void __cdecl oep_notify([[maybe_unused]] const Version client_version)
 		if (bAutoCombatRange)
 			vAutoCombat_Range = (CfgDoc.select_node(xorstr_("/config/options/option[@name='AutoCombat']")).node().attribute(xorstr_("range")).as_int()) * static_cast<float>(100) / 2;
 
-		if (useDebug) {
+		if (useDebug)
 			AllocConsole();
-			freopen("CONOUT$", "w", stdout);
-		}
 
 		auto sBinput = std::search(data.begin(), data.end(), pattern_searcher(xorstr_("0F B6 47 18 48 8D 4C 24 30 89 03")));
 		if (sBinput != data.end()) {
